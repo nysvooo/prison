@@ -17,8 +17,12 @@ if (isset($_POST['search_term'])) {
 }
 
 // Fetch prisoners from the database to display in the dashboard, with search query if provided
-$query = "SELECT * FROM prisoners WHERE first_name LIKE '%$search_term%' OR last_name LIKE '%$search_term%'";
-$result = $conn->query($query);
+$query = "SELECT * FROM prisoners WHERE first_name LIKE ? OR last_name LIKE ?";
+$stmt = $conn->prepare($query);
+$search_term_wildcard = '%' . $search_term . '%';
+$stmt->bind_param("ss", $search_term_wildcard, $search_term_wildcard);
+$stmt->execute();
+$result = $stmt->get_result();
 
 // Check if the query is successful
 if ($result === false) {
@@ -186,18 +190,30 @@ if ($result === false) {
                     $formatted_sentence .= $days . " days";
                 }
 
+                // Check if the date is valid
+                $date_of_incarceration = $row['date_of_incarceration'];
+                if ($date_of_incarceration != "0000-00-00" && $date_of_incarceration != NULL) {
+                    // Format the date to MM/DD/YYYY
+                    $date_of_incarceration = date("m/d/Y", strtotime($date_of_incarceration));
+                } else {
+                    $date_of_incarceration = "N/A"; // If invalid, display N/A
+                }
+
+                // Check if the status is empty, and set a default value if necessary
+                $status = empty($row['status']) ? "Unknown" : $row['status'];
+
                 // Display the data in the table
                 echo "<tr>
-                    <td>" . $row['id'] . "</td>
-                    <td>" . $row['first_name'] . "</td>
-                    <td>" . $row['last_name'] . "</td>
-                    <td>" . $row['crime_committed'] . "</td>
-                    <td>" . $formatted_sentence . "</td>
-                    <td>" . $row['date_of_incarceration'] . "</td>
-                    <td>" . $row['status'] . "</td>
+                    <td>" . htmlspecialchars($row['id']) . "</td>
+                    <td>" . htmlspecialchars($row['first_name']) . "</td>
+                    <td>" . htmlspecialchars($row['last_name']) . "</td>
+                    <td>" . htmlspecialchars($row['crime_committed']) . "</td>
+                    <td>" . htmlspecialchars($formatted_sentence) . "</td>
+                    <td>" . htmlspecialchars($date_of_incarceration) . "</td>
+                    <td>" . htmlspecialchars($status) . "</td>
                     <td>
-                        <a href='update.php?id=" . $row['id'] . "'><button>Edit</button></a>
-                        <a href='delete.php?id=" . $row['id'] . "'><button>Delete</button></a>
+                        <a href='update.php?id=" . urlencode($row['id']) . "'><button>Edit</button></a>
+                        <a href='delete.php?id=" . urlencode($row['id']) . "'><button>Delete</button></a>
                     </td>
                 </tr>";
             }
