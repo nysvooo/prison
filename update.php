@@ -1,7 +1,6 @@
 <?php
 session_start();
-include('db.php'); // Include the correct database connection
-include('encryption.php'); // 🔐 Include the encryption functions
+include('db.php');
 
 // Ensure that the user is logged in
 if (!isset($_SESSION['username'])) {
@@ -9,147 +8,145 @@ if (!isset($_SESSION['username'])) {
     exit();
 }
 
-// Check if the form is submitted to add new prisoner data
+// Get the prisoner ID from the URL (passed when clicking 'Edit')
+$prisoner_id = $_GET['id'];
+
+// Fetch the current data for the prisoner
+$query = "SELECT * FROM prisoners WHERE id = ?";
+$stmt = $conn->prepare($query);
+$stmt->bind_param("i", $prisoner_id);
+$stmt->execute();
+$result = $stmt->get_result();
+$row = $result->fetch_assoc();
+
+// If no prisoner is found
+if (!$row) {
+    echo "Prisoner not found!";
+    exit();
+}
+
+// Check if the form is submitted
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Get the form data
     $first_name = $_POST['first_name'];
     $last_name = $_POST['last_name'];
     $crime_committed = $_POST['crime_committed'];
     $sentence_length = $_POST['sentence_length'];
     $date_of_incarceration = $_POST['date_of_incarceration'];
-    $status = $_POST['status'];
+    $status = $_POST['status'];  // Get the status value from the form
 
-    // 🔐 Encrypt the crime_committed value
-    $encrypted_crime = encryptData($crime_committed);
+    // Prepare and execute the update query
+    $update_query = "UPDATE prisoners SET first_name = ?, last_name = ?, crime_committed = ?, sentence_length = ?, date_of_incarceration = ?, status = ? WHERE id = ?";
+    $stmt = $conn->prepare($update_query);
+    $stmt->bind_param("ssssssi", $first_name, $last_name, $crime_committed, $sentence_length, $date_of_incarceration, $status, $prisoner_id);
 
-    // Insert prisoner details into the database
-    $sql = "INSERT INTO prisoners (first_name, last_name, crime_committed, sentence_length, date_of_incarceration, status) 
-            VALUES ('$first_name', '$last_name', '$encrypted_crime', '$sentence_length', '$date_of_incarceration', '$status')";
-
-    if ($conn->query($sql) === TRUE) {
-        // Redirect to dashboard after successful insertion
+    if ($stmt->execute()) {
+        // Redirect to dashboard after successful update
         header("Location: dashboard.php");
         exit();
     } else {
-        $error_message = "Error: " . $conn->error;
+        echo "Error updating prisoner: " . $stmt->error;
     }
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Add Prisoner</title>
+    <title>Edit Prisoner</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+            background-color: #e3f2fd; /* Blue background */
             margin: 0;
+            padding: 0;
         }
-
-        .form-container {
+        .container {
+            width: 50%;
+            margin: 50px auto;
             background-color: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            width: 400px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
-
-        h2 {
+        h1 {
             text-align: center;
             margin-bottom: 20px;
+            color: #0d47a1; /* Dark blue */
         }
-
         label {
-            font-weight: bold;
             display: block;
-            margin-bottom: 8px;
+            margin: 10px 0 5px;
+            color: #0d47a1;
         }
-
-        input, select {
+        input, select, button {
             width: 100%;
             padding: 10px;
             margin: 10px 0;
+            border: 1px solid #1976d2; /* Blue border */
             border-radius: 4px;
-            border: 1px solid #ccc;
+            box-sizing: border-box;
         }
-
+        input[type="date"] {
+            padding: 9px; /* Adjusted for date inputs */
+        }
         button {
-            width: 100%;
-            padding: 10px;
-            background-color: #4CAF50;
+            background-color: #1976d2; /* Blue button */
             color: white;
             border: none;
-            border-radius: 4px;
             cursor: pointer;
         }
-
         button:hover {
-            background-color: #45a049;
+            background-color: #1565c0; /* Darker blue */
         }
-
-        .message {
+        .footer {
             text-align: center;
-            margin: 10px 0;
-            color: green;
+            background-color: #1976d2;
+            color: white;
+            padding: 10px;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
         }
-
-        .error-message {
-            text-align: center;
-            margin: 10px 0;
-            color: red;
-        }
-
-        a {
-            text-decoration: none;
-            color: #007bff;
-            display: block;
-            text-align: center;
-            margin-top: 20px;
+        .footer p {
+            margin: 0;
         }
     </style>
 </head>
 <body>
 
-<div class="form-container">
-    <h2>Add New Prisoner</h2>
+<div class="container">
+    <h1>Edit Prisoner Details</h1>
+    <form action="update.php?id=<?php echo urlencode($prisoner_id); ?>" method="POST">
+        <label for="first_name">First Name:</label>
+        <input type="text" id="first_name" name="first_name" value="<?php echo htmlspecialchars($row['first_name']); ?>" required /><br>
 
-    <!-- Error Message if any -->
-    <?php if (isset($error_message)): ?>
-        <div class="error-message"><?php echo $error_message; ?></div>
-    <?php endif; ?>
+        <label for="last_name">Last Name:</label>
+        <input type="text" id="last_name" name="last_name" value="<?php echo htmlspecialchars($row['last_name']); ?>" required /><br>
 
-    <form action="add_prisoner.php" method="POST">
-        <label for="first_name">First Name</label>
-        <input type="text" id="first_name" name="first_name" placeholder="Enter First Name" required>
+        <label for="crime_committed">Crime Committed:</label>
+        <input type="text" id="crime_committed" name="crime_committed" value="<?php echo htmlspecialchars($row['crime_committed']); ?>" required /><br>
 
-        <label for="last_name">Last Name</label>
-        <input type="text" id="last_name" name="last_name" placeholder="Enter Last Name" required>
+        <label for="sentence_length">Sentence Length (days):</label>
+        <input type="number" id="sentence_length" name="sentence_length" value="<?php echo htmlspecialchars($row['sentence_length']); ?>" required /><br>
 
-        <label for="crime_committed">Crime Committed</label>
-        <input type="text" id="crime_committed" name="crime_committed" placeholder="Enter Crime Committed" required>
+        <label for="date_of_incarceration">Date of Incarceration:</label>
+        <input type="date" id="date_of_incarceration" name="date_of_incarceration" value="<?php echo htmlspecialchars($row['date_of_incarceration']); ?>" required /><br>
 
-        <label for="sentence_length">Sentence Length in Days</label>
-        <input type="text" id="sentence_length" name="sentence_length" placeholder="Enter Sentence Length" required>
+        <label for="status">Status:</label>
+<input type="text" id="status" name="status" list="status-options" value="<?php echo htmlspecialchars($row['status']); ?>" required />
+<datalist id="status-options">
+    <option value="Incarcerated">
+    <option value="Out">
+</datalist><br>
 
-        <label for="date_of_incarceration">Date of Incarceration</label>
-        <input type="date" id="date_of_incarceration" name="date_of_incarceration" required>
-
-        <label for="status">Status</label>
-        <select name="status" id="status" required>
-            <option value="Incarcerated">Incarcerated</option>
-            <option value="Out">Out</option>
-        </select>
-
-        <button type="submit">Add Prisoner</button>
+        <button type="submit">Update Prisoner</button>
     </form>
+</div>
 
-    <a href="dashboard.php">Back to Dashboard</a>
+<!-- Footer Section -->
+<div class="footer">
+    <p>&copy; 2025 College of Computer Science Prison. All rights reserved.</p>
 </div>
 
 </body>
